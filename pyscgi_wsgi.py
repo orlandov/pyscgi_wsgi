@@ -11,7 +11,7 @@ SCGI implementation
 
 import sys
 
-from pyscgi import ServerFactory, SCGIHandler, SCGIServer
+from pyscgi import ServerFactory, SCGIHandler, SCGIServer, SCGIServerFork
 
 class SCGItoWSGIHandler(SCGIHandler):
     def __init__(self, request, client_address, server):
@@ -33,12 +33,6 @@ class SCGItoWSGIHandler(SCGIHandler):
             environ['wsgi.url_scheme'] = 'https'
         else:
             environ['wsgi.url_scheme'] = 'http'
-
-        prefix = '/sgcitest'
-        path = environ['REQUEST_URI'][len(prefix):].split('?', 1)[0]
-        
-        environ['SCRIPT_NAME'] = prefix
-        environ['PATH_INFO'] = path
         
         headers_set = []
         headers_sent = []
@@ -71,7 +65,7 @@ class SCGItoWSGIHandler(SCGIHandler):
                 # Error -- the app never called start_response
                 status = '500 Server Error'
                 response_headers = [('Content-type', 'text/html')]
-                chunks = ["XXX start_response never called"]
+                chunks = ["start_response never called"]
             else:
                 status, response_headers = headers_sent[:] = headers_set
                
@@ -86,19 +80,13 @@ class SCGItoWSGIHandler(SCGIHandler):
             if hasattr(result,'close'):
                 result.close()
         
-        # SCGI backends use connection closing to signal 'fini'.
-        try:
-            input.close()
-            output.close()
-            conn.close()
-        except IOError, err:
-            debug("IOError while closing connection ignored: %s" % err)
 
 def simple_app(environ, start_response):
     status = '200 OK'
     response_headers = [('Content-type','text/plain')]
     start_response(status, response_headers)
-    return ['Hello world!\n']
+    import pprint
+    return ['Hello world!\n%s' % (pprint.pformat(environ),)]
 
 def serve_application(application, host="", port=4000):
     handler_class = SCGItoWSGIHandler
