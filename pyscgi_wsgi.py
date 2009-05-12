@@ -1,8 +1,11 @@
 #!python
 
 """
-A port of SWAT (SCGI->WSGI Application Proxy) to using the Cherokee Project
-SCGI implementation
+pyscgi_wsgi.py is very creatively named server that serves SCGI requests to
+WSGI backends. It contains functions suitable for use with paster/pylons.
+It uses the Cherokee PySCGI library. Patches/forks welcome.
+
+Orlando Vazquez <ovazquez@gmail.com>
 """
 
 # References:
@@ -10,6 +13,9 @@ SCGI implementation
 # http://www.cherokee-project.com/download/pyscgi/
 
 import sys
+
+__version__ = 0.01
+__author__ = 'Orlando Vazquez'
 
 from pyscgi import ServerFactory, SCGIHandler, SCGIServer, SCGIServerFork
 
@@ -22,6 +28,12 @@ class SCGItoWSGIHandler(SCGIHandler):
         input = self.rfile
         output = self.wfile
         environ = self.env
+
+        if environ['SCRIPT_NAME'] == '/' and environ['PATH_INFO'] == '':
+            environ['SCRIPT_NAME'] = ''
+            environ['PATH_INFO'] = '/'
+
+
         environ['wsgi.input']        = input
         environ['wsgi.errors']       = sys.stderr
         environ['wsgi.version']      = (1, 0)
@@ -81,17 +93,14 @@ class SCGItoWSGIHandler(SCGIHandler):
                 result.close()
         
 
-def simple_app(environ, start_response):
-    status = '200 OK'
-    response_headers = [('Content-type','text/plain')]
-    start_response(status, response_headers)
-    import pprint
-    return ['Hello world!\n%s' % (pprint.pformat(environ),)]
-
-def serve_application(application, host="", port=4000):
+def run_scgi_thread(application, global_conf, scriptname='', host="", port=4000):
     handler_class = SCGItoWSGIHandler
-    server = SCGIServer(handler_class)
-    server.application = application
+    server = SCGIServer(handler_class, host, int(port))
+    server.application = application #simple_app
     server.serve_forever()
 
-serve_application(simple_app)
+def run_scgi_fork(application, global_conf, scriptname='', host="", port=4000):
+    handler_class = SCGItoWSGIHandler
+    server = SCGIServerFork(handler_class)
+    server.application = application
+    server.serve_forever()
